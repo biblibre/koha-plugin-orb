@@ -1,0 +1,3 @@
+---
+eans_qp:
+  $ref: ./parameters/eans.yaml#/eans_qp

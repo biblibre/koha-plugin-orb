@@ -1,0 +1,44 @@
+# Note: This is a full specification, but only paths are actually used.
+# Any refs are rewritten as absolute file uris.
+---
+swagger: "2.0"
+paths:
+  /images:
+    get:
+      description: Get Orb cover image from Orb Webservice.
+      operationId: getOrbImages
+      parameters:
+        - $ref: ./openapi/parameters.yaml#/eans_qp
+      produces:
+        - application/json
+      responses:
+        200:
+          description: List of images received
+          schema:
+            type: object
+        400:
+          description: Bad parameters
+          schema:
+            $ref: ./openapi/definitions.yaml#/error
+        401:
+          description: Authentication required
+          schema:
+            $ref: ./openapi/definitions.yaml#/error
+        403:
+          description: Access forbidden
+          schema:
+            $ref: ./openapi/definitions.yaml#/error
+        500:
+          description: Internal error
+          schema:
+            $ref: ./openapi/definitions.yaml#/error
+        503:
+          description: Under maintenance
+          schema:
+            $ref: ./openapi/definitions.yaml#/error
+      tags:
+        - enhanced_content
+      x-mojo-to: Com::Biblibre::Orb::Controller::Webservice#get_orb_images
+info:
+  title: Koha REST API Orb Interface Plugin
+  version: "1"

@@ -1,0 +1,5 @@
+---
+images:
+  $ref: ./definitions/images.yaml
+error:
+  $ref: "./definitions/error.yaml"

@@ -1,0 +1,6 @@
+---
+properties:
+  url:
+    description: Images from Orb Webservice
+    type: string
+type: object
