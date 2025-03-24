@@ -1,3 +1,9 @@
+# 2025-03-24
+**Version 1.1**
+
+- Fix config form input and label
+- Add correct permissions to API calls
+
 # 2024-11-21
 **Version 1.0**
 
