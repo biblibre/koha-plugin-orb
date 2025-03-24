@@ -39,6 +39,9 @@ paths:
       tags:
         - enhanced_content
       x-mojo-to: Com::Biblibre::Orb::Controller::Webservice#get_orb_images
+      x-koha-authorization:
+        permissions:
+          catalogue: 1
 info:
   title: Koha REST API Orb Interface Plugin
   version: "1"

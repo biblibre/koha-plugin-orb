@@ -35,7 +35,7 @@
 [% INCLUDE 'header.inc' %]
 [% INCLUDE 'cat-search.inc' %]
 
-<div id="breadcrumbs"><a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo; Electre &rsaquo; Configuration</div>
+<div id="breadcrumbs"><a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo; Orb &rsaquo; Configuration</div>
 
 <div class="container-fluid">
     <h3>Koha Orb Plugin: Configuration</h3>
@@ -43,44 +43,43 @@
     <form method="get" id="orb_plugin_config">
         <div class="container">
             <div class="row mb-3">
-                <label for="base_url" class="col-sm-2 col-form-label">Orb base url</label>
-                <note>(for example <code>https://api.base-orb.fr/v1</code>)</note>
+                <label for="base_url" class="col-sm-2">Orb base url</label>
                 <div class="col-sm-2">
-                    <input type="text" name="base_url" id="base_url" class="form-control" value="[% base_url %]" />
+                    <input type="text" name="base_url" id="base_url" value="[% base_url %]" placeholder="https://api.base-orb.fr/v1" />
                 </div>
             </div>
             <div class="row mb-3">
-                <label for="access_username" class="col-sm-2 col-form-label">Orb username</label>
+                <label for="access_username" class="col-sm-2">Orb username</label>
                 <div class="col-sm-2">
-                    <input type="text" name="access_username" id="access_username" class="form-control" value="[% access_username %]" />
+                    <input type="text" name="access_username" id="access_username" value="[% access_username %]" />
                 </div>
             </div>
             <div class="row mb-3">
-                <label for="access_password" class="col-sm-2 col-form-label">Orb password</label>
+                <label for="access_password" class="col-sm-2">Orb password</label>
                 <div class="col-sm-2">
-                    <input type="password" name="access_password" id="access_password" class="form-control" value="[% access_password %]" />
+                    <input type="password" name="access_password" id="access_password" value="[% access_password %]" />
                 </div>
             </div>
             <div class="row mb-3">
-                <label class="col-sm-2 col-form-label">Show Orb images</label>
+                <label class="col-sm-2">Show Orb images</label>
                 <div class="col-sm-6">
-                    <div class="form-check">
-                        <input type="checkbox" id="image_on_staff" name="image_on_staff" class="form-check-input" value="1" [% IF image_on_staff %] checked="checked" [% END %] />
-                        <label for="image_on_staff" class="form-check-label">Staff</label>
-                        <div id="image_size_group_staff" class="form-group mt-2 hide">
-                            <label for="thumbnail_on_staff" class="form-label">Thumbnail size on detail page</label>
-                            <select id="thumbnail_on_staff" name="thumbnail_on_staff" class="form-select">
+                    <div>
+                        <input type="checkbox" id="image_on_staff" name="image_on_staff" value="1" [% IF image_on_staff %] checked="checked" [% END %] />
+                        <label for="image_on_staff">Staff</label>
+                        <div id="image_size_group_staff" class="mt-2 hide">
+                            <label for="thumbnail_on_staff">Thumbnail size on detail page</label>
+                            <select id="thumbnail_on_staff" name="thumbnail_on_staff">
                                 <option value="1" [% IF thumbnail_on_staff == "1" %] selected="selected" [% END %]>Yes</option>
                                 <option value="0" [% IF thumbnail_on_staff == "0" %] selected="selected" [% END %]>No</option>
                             </select>
                         </div>
                     </div>
-                    <div class="form-check">
-                        <input type="checkbox" id="image_on_opac" name="image_on_opac" class="form-check-input" value="1" [% IF image_on_opac %] checked="checked" [% END %] />
-                        <label for="image_on_opac" class="form-check-label">OPAC</label>
-                        <div id="image_size_group_opac" class="form-group mt-2 hide">
-                            <label for="thumbnail_on_opac" class="form-label">Thumbnail size on detail page</label>
-                            <select id="thumbnail_on_opac" name="thumbnail_on_opac" class="form-select">
+                    <div>
+                        <input type="checkbox" id="image_on_opac" name="image_on_opac" value="1" [% IF image_on_opac %] checked="checked" [% END %] />
+                        <label for="image_on_opac">OPAC</label>
+                        <div id="image_size_group_opac" class="mt-2 hide">
+                            <label for="thumbnail_on_opac">Thumbnail size on detail page</label>
+                            <select id="thumbnail_on_opac" name="thumbnail_on_opac">
                                 <option value="1" [% IF thumbnail_on_opac == "1" %] selected="selected" [% END %]>Yes</option>
                                 <option value="0" [% IF thumbnail_on_opac == "0" %] selected="selected" [% END %]>No</option>
                             </select>
