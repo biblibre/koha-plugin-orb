@@ -45,19 +45,19 @@
             <div class="row mb-3">
                 <label for="base_url" class="col-sm-2">Orb base url</label>
                 <div class="col-sm-2">
-                    <input type="text" name="base_url" id="base_url" value="[% base_url %]" placeholder="https://api.base-orb.fr/v1" />
+                    <input type="text" name="base_url" id="base_url" value="[% base_url | html %]" placeholder="https://api.base-orb.fr/v1" />
                 </div>
             </div>
             <div class="row mb-3">
                 <label for="access_username" class="col-sm-2">Orb username</label>
                 <div class="col-sm-2">
-                    <input type="text" name="access_username" id="access_username" value="[% access_username %]" />
+                    <input type="text" name="access_username" id="access_username" value="[% access_username | html %]" />
                 </div>
             </div>
             <div class="row mb-3">
                 <label for="access_password" class="col-sm-2">Orb password</label>
                 <div class="col-sm-2">
-                    <input type="password" name="access_password" id="access_password" value="[% access_password %]" />
+                    <input type="password" name="access_password" id="access_password" value="[% access_password | html %]" />
                 </div>
             </div>
             <div class="row mb-3">
