@@ -15,7 +15,7 @@ paths:
         200:
           description: List of images received
           schema:
-            type: object
+            type: array
         404:
           description: Not found
           schema:

@@ -30,7 +30,7 @@ use C4::Context;
 
 =head2 Methods
 
-Controller function that handles getting Electre images
+Controller function that handles getting Orb images
 
 =cut
 
@@ -45,7 +45,7 @@ sub get_orb_images {
 
         return $c->render(
             status => 200,
-            data   => to_json($contents->{'data'}),
+            openapi   => $contents->{'data'},
         );
     }
     elsif ( $response->is_error ) {
