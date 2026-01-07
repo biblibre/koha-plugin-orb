@@ -1,3 +1,11 @@
+# 2026-01-07
+**Version 3.0**
+
+- Fix bad header on api calls
+- Fix covers display and request when many providers are active or when Orb is the only one
+- Improve code and fix typo
+
+
 # 2025-07-08
 **Version 2.0**
 
