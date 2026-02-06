@@ -25,6 +25,7 @@ use HTTP::Request::Common;
 use JSON;
 
 use C4::Context;
+use C4::Koha qw(NormalizeISBN);
 
 =head1 API
 
@@ -36,34 +37,73 @@ Controller function that handles getting Orb images
 
 sub get_orb_images {
     my $c = shift->openapi->valid_input or return;
-    my $eans = $c->param('eans');
 
-    my $ua = $c->_ua;
-    my $response = $ua->get("https://api.base-orb.fr/v1/products?eans=$eans&sort=ean_asc");
+    my $isbn10s = $c->param('isbn10s');
+
+    return $c->render(
+        status  => 400,
+        openapi => { error => "No ISBN10s provided" }
+    ) unless $isbn10s;
+
+    my @isbn10_list = split( /,/, $isbn10s );
+    my %isbn10_to_ean13_map;
+    my @ean13_list;
+
+    for my $isbn10 (@isbn10_list) {
+        my $isbn13 = NormalizeISBN(
+            {
+                isbn          => $isbn10,
+                format        => 'ISBN-13',
+                strip_hyphens => 1,
+            }
+        );
+        if ($isbn13) {
+            push @ean13_list, $isbn13;
+            $isbn10_to_ean13_map{$isbn13} = $isbn10;
+        }
+    }
+
+    return $c->render(
+        status  => 400,
+        openapi => { error => "No valid ISBN13s generated" }
+    ) unless @ean13_list;
+
+    my $eans = join( ',', @ean13_list );
+    my $ua   = $c->_ua;
+    my $response =
+      $ua->get("https://api.base-orb.fr/v1/products?eans=$eans&sort=ean_asc");
+
     if ( $response->is_success ) {
-        my $contents = decode_json($response->decoded_content);
+        my $contents = decode_json( $response->decoded_content );
+        my $data     = $contents->{'data'};
+
+        for my $item (@$data) {
+            my $ean13 = $item->{'ean13'};
+            if ( exists $isbn10_to_ean13_map{$ean13} ) {
+                $item->{'isbn10'} = $isbn10_to_ean13_map{$ean13};
+            }
+        }
 
         return $c->render(
-            status => 200,
-            openapi   => $contents->{'data'},
+            status  => 200,
+            openapi => $data,
         );
     }
     elsif ( $response->is_error ) {
         return $c->render(
             status  => 500,
-            openapi =>
-              { error => "Orb error: " . $response->status_line },
+            openapi => { error => "Orb error: " . $response->status_line },
         );
     }
 }
 
 sub _ua {
-    my $ua = LWP::UserAgent->new();
+    my $ua     = LWP::UserAgent->new();
     my $plugin = Koha::Plugin::Com::Biblibre::Orb->new();
 
     my $username = $plugin->retrieve_data('access_username');
     my $password = $plugin->retrieve_data('access_password');
-    $ua->credentials('api.base-orb.fr:443', '', $username, $password);
+    $ua->credentials( 'api.base-orb.fr:443', '', $username, $password );
 
     return $ua;
 }

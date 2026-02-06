@@ -8,7 +8,7 @@ paths:
       description: Get Orb cover image from Orb Webservice.
       operationId: getOrbImages
       parameters:
-        - $ref: ./openapi/parameters.yaml#/eans_qp
+        - $ref: ./openapi/parameters.yaml#/isbn10s_qp
       produces:
         - application/json
       responses:

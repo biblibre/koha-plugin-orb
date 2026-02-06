@@ -1,0 +1,7 @@
+---
+isbn10s_qp:
+  description: List of ISBN10s (comma-separated)
+  in: query
+  name: isbn10s
+  type: string
+  required: true

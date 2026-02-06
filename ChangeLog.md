@@ -1,10 +1,15 @@
+# 2026-02-06
+**Version 4.0**
+
+- Use isbn10 to get normalize isbn13 to get more covers
+- Fix cover nav when more than one provider is active
+
 # 2026-01-07
 **Version 3.0**
 
 - Fix bad header on api calls
 - Fix covers display and request when many providers are active or when Orb is the only one
 - Improve code and fix typo
-
 
 # 2025-07-08
 **Version 2.0**

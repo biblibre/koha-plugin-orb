@@ -5,14 +5,14 @@ use base       qw(Koha::Plugins::Base);
 use Mojo::JSON qw(decode_json);
 use C4::Context;
 
-our $VERSION         = "3.0";
+our $VERSION         = "4.0";
 our $MINIMUM_VERSION = "23.05";
 
 our $metadata = {
     name            => 'Plugin Orb',
     author          => 'Thibaud Guillot',
     date_authored   => '2024-11-18',
-    date_updated    => "2026-01-07",
+    date_updated    => "2026-02-06",
     minimum_version => $MINIMUM_VERSION,
     maximum_version => undef,
     version         => $VERSION,
@@ -177,22 +177,22 @@ sub intranet_cover_images {
             const divDetail = \$('#catalogue_detail_biblio');
             const onResultPage = divDetail.length ? false : true;
             if(search_results_images.length){
-                const eans = [];
+                const isbn10s = [];
                 const thumbnails = {};
                 search_results_images.forEach((div, i) => {
                     let isbn = div.dataset.isbn;
                     
                     if (isbn) {
-                        if (isbn.length == 10) {
-                            isbn = 978 + isbn;
+                        const originalIsbn = isbn.length == 10 ? isbn : null;
+                        if (originalIsbn) {
+                            if (!thumbnails[originalIsbn]) {
+                                thumbnails[originalIsbn] = [];
+                            }
+                            thumbnails[originalIsbn].push(div);
+                            isbn10s.push(originalIsbn);
                         }
-                        if (!thumbnails[isbn]) {
-                            thumbnails[isbn] = [];
-                        }
-                        thumbnails[isbn].push(div);
-                        eans.push(isbn);
                     }
-                    if(!onResultPage && existingCovers.length == 0){
+                    if(!onResultPage && existingCovers.length == 0 && isbn){
                         const coverSlide = thumbnails[isbn];
                         if(coverSlide){
                             \$(coverSlide).append(`
@@ -207,71 +207,72 @@ sub intranet_cover_images {
                     }
                 });
 
-                \$.get(
-                    `/api/v1/contrib/orb/images?eans=\${eans.join(',')}`, function( response ) {
-                        if(response.length > 0) {
-                            response.forEach(doc => {
-                                let sizeSrc;
-                                if(onResultPage) {
-                                    sizeSrc = doc.images.front.thumbnail.src;
-                                    const coverSlides = thumbnails[doc.ean13];
-                                    coverSlides.forEach(coverSlide => {
-                                        const biblionumber = coverSlide.getAttribute('data-biblionumber');
-                                        const divId = `orb-bookcoverimg-\${biblionumber}`;
-                                        coverSlide.innerHTML += `
-                                            <div id="\${divId}" class="cover-image orb-bookcoverimg">
-                                                <a href="\${sizeSrc}" >
-                                                    <img class="orb-cover" src="\${sizeSrc}" alt="Orb cover image" />
-                                                </a>
-                                                <div class="hint">Orb cover image</div>
-                                            </div>
-                                        `;
-                                        // Manually remove no-image div if present
-                                        if(coverSlide.querySelector('.no-image')){
-                                            coverSlide.querySelector('.no-image').remove();
-                                        }
-                                    });
-                                 
-                                } else {
-                                    const coverSlide = thumbnails[doc.ean13];
-                                    if(coverSlide){
-                                        sizeSrc = '$thumbnail_on_staff' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src;
-                                        if(existingCovers.length > 0) {
-                                            \$(coverSlide).append(`
-                                                <div id="orb-bookcoverimg" class="cover-image orb-bookcoverimg">
-                                                    <a href="\${sizeSrc}" >
-                                                        <img class="orb-cover" src="\${sizeSrc}" alt="Orb cover image" />
-                                                    </a>
-                                                    <div class="hint">Image from Orb</div>
-                                                </div>
-                                            `);
-                                            verify_cover_images();
+                if (isbn10s.length > 0) {
+                    \$.get(
+                        `/api/v1/contrib/orb/images?isbn10s=\${isbn10s.join(',')}`, function( response ) {
+                            if(response.length > 0) {
+                                response.forEach(doc => {
+                                    let sizeSrc;
+                                    const coverSlides = thumbnails[doc.isbn10];
+                                    if (coverSlides) {
+                                        if(onResultPage) {
+                                            sizeSrc = doc.images.front.thumbnail.src;
+                                            coverSlides.forEach(coverSlide => {
+                                                const biblionumber = coverSlide.getAttribute('data-biblionumber');
+                                                const divId = `orb-bookcoverimg-\${biblionumber}`;
+                                                coverSlide.innerHTML += `
+                                                    <div id="\${divId}" class="cover-image orb-bookcoverimg">
+                                                        <a href="\${sizeSrc}" >
+                                                            <img class="orb-cover" src="\${sizeSrc}" alt="Orb cover image" />
+                                                        </a>
+                                                        <div class="hint">Orb cover image</div>
+                                                    </div>
+                                                `;
+                                                // Manually remove no-image div if present
+                                                if(coverSlide.querySelector('.no-image')){
+                                                    coverSlide.querySelector('.no-image').remove();
+                                                }
+                                            });
+                                         
                                         } else {
-                                            const orbThumbnail = \$("#orb-bookcoverimg");
-                                            orbThumbnail.find('img').attr('src', sizeSrc);
-                                            orbThumbnail.find('a').attr('href', sizeSrc);
+                                            sizeSrc = '$thumbnail_on_staff' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src;
+                                            if(existingCovers.length > 0) {
+                                                \$(coverSlides).append(`
+                                                    <div id="orb-bookcoverimg" class="cover-image orb-bookcoverimg">
+                                                        <a href="\${sizeSrc}" >
+                                                            <img class="orb-cover" src="\${sizeSrc}" alt="Orb cover image" />
+                                                        </a>
+                                                        <div class="hint">Image from Orb</div>
+                                                    </div>
+                                                `);
+                                                verify_cover_images();
+                                            } else {
+                                                const orbThumbnail = \$("#orb-bookcoverimg");
+                                                orbThumbnail.find('img').attr('src', sizeSrc);
+                                                orbThumbnail.find('a').attr('href', sizeSrc);
+                                            }
                                         }
                                     }
-                                }
-                            });
-                        } else {
-                            const orbThumbnail = \$("#orb-bookcoverimg");
-                            orbThumbnail.remove();
-                            verify_cover_images();
-                        }
+                                });
+                            } else {
+                                const orbThumbnail = \$("#orb-bookcoverimg");
+                                orbThumbnail.remove();
+                                verify_cover_images();
+                            }
 
-                        if (onResultPage) {
-                            const length = \$('.orb-bookcoverimg').length;
-                            let i = 0;
-                            \$('.orb-cover').load(() => {
-                                i++;
-                                if (i == length) {
-                                    verify_cover_images();
-                                }
-                            });
+                            if (onResultPage) {
+                                const length = \$('.orb-bookcoverimg').length;
+                                let i = 0;
+                                \$('.orb-cover').load(() => {
+                                    i++;
+                                    if (i == length) {
+                                        verify_cover_images();
+                                    }
+                                });
+                            }
                         }
-                    }
                 );
+                }
             }
         }
     document.addEventListener('DOMContentLoaded', addOrbCover, true);
@@ -294,22 +295,22 @@ sub opac_cover_images {
             const divDetail = \$('#catalogue_detail_biblio');
             const onResultPage = divDetail.length ? false : true;
             if(search_results_images.length){
-                const eans = [];
+                const isbn10s = [];
                 const thumbnails = {};
                 search_results_images.forEach((div, i) => {
                     let isbn = div.dataset.isbn;
                     
-                   if (isbn) {
-                        if (isbn.length == 10) {
-                            isbn = 978 + isbn;
+                    if (isbn) {
+                        const originalIsbn = isbn.length == 10 ? isbn : null;
+                        if (originalIsbn) {
+                            if (!thumbnails[originalIsbn]) {
+                                thumbnails[originalIsbn] = [];
+                            }
+                            thumbnails[originalIsbn].push(div);
+                            isbn10s.push(originalIsbn);
                         }
-                        if (!thumbnails[isbn]) {
-                            thumbnails[isbn] = [];
-                        }
-                        thumbnails[isbn].push(div);
-                        eans.push(isbn);
                     }
-                    if(!onResultPage && existingCovers.length == 0){
+                    if(!onResultPage && existingCovers.length == 0 && isbn){
                         const coverSlide = thumbnails[isbn];
                         if(coverSlide){
                             \$(coverSlide).append(`
@@ -323,55 +324,57 @@ sub opac_cover_images {
                         }
                     }
                 });
-                \$.get(
-                    `/api/v1/contrib/orb/images?eans=\${eans.join(',')}`, function( response ) {
-                        if(response.length > 0) {
-                            response.forEach(doc => {
-                                let sizeSrc;
-                                const coverSlides = thumbnails[doc.ean13];
-                                if (onResultPage) {
-                                    sizeSrc = doc.images.front.thumbnail.src;
-                                    coverSlides.forEach(coverSlide => {
-                                        if (coverSlide) {
-                                            const imgTitle = coverSlide.dataset.title;
-                                            coverSlide.innerHTML += `
-                                                <div title="\${imgTitle}">
-                                                    <a href="\${sizeSrc}" >
-                                                        <img src="\${sizeSrc}" alt="Orb cover image" class="item-thumbnail" />
-                                                    </a>
-                                                    <div class="hint">Image from Orb</div>
-                                                </div>
-                                            `;
-                                        }
-                                    });
-                                } else {
-                                    const coverSlide = thumbnails[doc.ean13];
-                                    if(coverSlide){
-                                        sizeSrc = '$thumbnail_on_opac' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src;
-                                        if(existingCovers.length > 0) {
-                                            \$(coverSlide).append(`
-                                                <div class="cover-image" id="orb-bookcoverimg">
-                                                    <a href="\${sizeSrc}" >
-                                                        <img src="\${sizeSrc}" alt="Orb cover image" class="orb-cover" />
-                                                    </a>
-                                                    <div class="hint">Image from Orb</div>
-                                                </div>
-                                            `);
-                                            verify_cover_images();
+                
+                if (isbn10s.length > 0) {
+                    \$.get(
+                        `/api/v1/contrib/orb/images?isbn10s=\${isbn10s.join(',')}`, function( response ) {
+                            if(response.length > 0) {
+                                response.forEach(doc => {
+                                    let sizeSrc;
+                                    const coverSlides = thumbnails[doc.isbn10];
+                                    if (coverSlides) {
+                                        if (onResultPage) {
+                                            sizeSrc = doc.images.front.thumbnail.src;
+                                            coverSlides.forEach(coverSlide => {
+                                                if (coverSlide) {
+                                                    const imgTitle = coverSlide.dataset.title;
+                                                    coverSlide.innerHTML += `
+                                                        <div class="cover-image orb-coverimg" title="\${imgTitle}">
+                                                            <a href="\${sizeSrc}" >
+                                                                <img src="\${sizeSrc}" alt="Orb cover image" class="item-thumbnail" />
+                                                            </a>
+                                                            <div class="hint">Image from Orb</div>
+                                                        </div>
+                                                    `;
+                                                }
+                                            });
                                         } else {
-                                            const orbThumbnail = \$("#orb-bookcoverimg");
-                                            orbThumbnail.find('img').attr('src', sizeSrc);
-                                            orbThumbnail.find('a').attr('href', sizeSrc);
+                                            sizeSrc = '$thumbnail_on_opac' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src;
+                                            if(existingCovers.length > 0) {
+                                                \$(coverSlides).append(`
+                                                    <div class="cover-image" id="orb-bookcoverimg">
+                                                        <a href="\${sizeSrc}" >
+                                                            <img src="\${sizeSrc}" alt="Orb cover image" class="orb-cover" />
+                                                        </a>
+                                                        <div class="hint">Image from Orb</div>
+                                                    </div>
+                                                `);
+                                            } else {
+                                                const orbThumbnail = \$("#orb-bookcoverimg");
+                                                orbThumbnail.find('img').attr('src', sizeSrc);
+                                                orbThumbnail.find('a').attr('href', sizeSrc);
+                                            }
                                         }
+                                        \$(".cover-nav").remove();
                                     }
-                                }
-                            });
-                        } else {
-                            const orbThumbnail = \$("#orb-bookcoverimg");
-                            orbThumbnail.remove();
+                                });
+                            } else {
+                                const orbThumbnail = \$("#orb-bookcoverimg");
+                                orbThumbnail.remove();
+                            }
                             verify_cover_images();
-                        }
-                    });
+                        });
+                }
             }
         }
     document.addEventListener('DOMContentLoaded', addOrbCover, true);
