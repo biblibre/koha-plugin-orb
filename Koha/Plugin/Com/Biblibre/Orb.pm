@@ -214,7 +214,7 @@ sub intranet_cover_images {
                                 response.forEach(doc => {
                                     let sizeSrc;
                                     const coverSlides = thumbnails[doc.isbn10];
-                                    if (coverSlides) {
+                                    if (coverSlides && doc.images) {
                                         if(onResultPage) {
                                             sizeSrc = doc.images.front.thumbnail.src;
                                             coverSlides.forEach(coverSlide => {
@@ -332,7 +332,7 @@ sub opac_cover_images {
                                 response.forEach(doc => {
                                     let sizeSrc;
                                     const coverSlides = thumbnails[doc.isbn10];
-                                    if (coverSlides) {
+                                    if (coverSlides && doc.images) {
                                         if (onResultPage) {
                                             sizeSrc = doc.images.front.thumbnail.src;
                                             coverSlides.forEach(coverSlide => {
