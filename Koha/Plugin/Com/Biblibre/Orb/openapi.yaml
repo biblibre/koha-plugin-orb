@@ -16,8 +16,16 @@ paths:
           description: List of images received
           schema:
             type: array
+        400:
+          description: Bad request - Invalid or missing ISBN10s
+          schema:
+            $ref: ./openapi/definitions.yaml#/error
         404:
           description: Not found
+          schema:
+            $ref: ./openapi/definitions.yaml#/error
+        500:
+          description: Internal server error - Orb webservice error
           schema:
             $ref: ./openapi/definitions.yaml#/error
       tags:
