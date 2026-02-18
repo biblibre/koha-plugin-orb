@@ -1,3 +1,9 @@
+# 2026-02-18
+**Version 4.1**
+
+- Add missing 400 and 500 error responses to OpenAPI spec
+- Fix src injection if none images is provided by Orb
+
 # 2026-02-06
 **Version 4.0**
 
