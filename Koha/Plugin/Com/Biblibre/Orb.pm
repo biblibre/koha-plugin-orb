@@ -224,14 +224,20 @@ sub intranet_cover_images {
                                                 const wrapper = document.createElement('div');
                                                 wrapper.id = divId;
                                                 wrapper.className = 'cover-image orb-bookcoverimg';
-                                                wrapper.innerHTML = `
-                                                    <a href="\${sizeSrc}" >
-                                                        <img class="orb-cover" src="\${sizeSrc}" alt="Orb cover image" />
-                                                    </a>
-                                                    <div class="hint">Orb cover image</div>
-                                                `;
+                                                const link = document.createElement('a');
+                                                link.href = sizeSrc;
+                                                const img = document.createElement('img');
+                                                img.className = 'orb-cover';
+                                                img.alt = 'Orb cover image';
+                                                const hint = document.createElement('div');
+                                                hint.className = 'hint';
+                                                hint.textContent = 'Orb cover image';
+                                                link.appendChild(img);
+                                                wrapper.appendChild(link);
+                                                wrapper.appendChild(hint);
                                                 coverSlide.appendChild(wrapper);
-                                                injectedImgs.push(wrapper.querySelector('img'));
+                                                injectedImgs.push(img);
+                                                img.src = sizeSrc;
                                                 // Manually remove no-image div if present
                                                 if(coverSlide.querySelector('.no-image')){
                                                     coverSlide.querySelector('.no-image').remove();
@@ -269,13 +275,8 @@ sub intranet_cover_images {
                                 let done = 0;
                                 if (total === 0) { verify_cover_images(); }
                                 injectedImgs.forEach(img => {
-                                    if (img.complete) {
-                                        done++;
-                                        if (done === total) verify_cover_images();
-                                    } else {
-                                        img.addEventListener('load',  () => { done++; if (done === total) verify_cover_images(); });
-                                        img.addEventListener('error', () => { done++; if (done === total) verify_cover_images(); });
-                                    }
+                                    img.addEventListener('load',  () => { done++; if (done === total) verify_cover_images(); });
+                                    img.addEventListener('error', () => { done++; if (done === total) verify_cover_images(); });
                                 });
                             }
                         }
@@ -350,14 +351,20 @@ sub opac_cover_images {
                                                     const wrapper = document.createElement('div');
                                                     wrapper.className = 'cover-image orb-coverimg';
                                                     wrapper.title = imgTitle;
-                                                    wrapper.innerHTML = `
-                                                        <a href="\${sizeSrc}" >
-                                                            <img src="\${sizeSrc}" alt="Orb cover image" class="item-thumbnail" />
-                                                        </a>
-                                                        <div class="hint">Image from Orb</div>
-                                                    `;
+                                                    const link = document.createElement('a');
+                                                    link.href = sizeSrc;
+                                                    const img = document.createElement('img');
+                                                    img.alt = 'Orb cover image';
+                                                    img.className = 'item-thumbnail';
+                                                    const hint = document.createElement('div');
+                                                    hint.className = 'hint';
+                                                    hint.textContent = 'Image from Orb';
+                                                    link.appendChild(img);
+                                                    wrapper.appendChild(link);
+                                                    wrapper.appendChild(hint);
                                                     coverSlide.appendChild(wrapper);
-                                                    injectedImgs.push(wrapper.querySelector('img'));
+                                                    injectedImgs.push(img);
+                                                    img.src = sizeSrc;
                                                 }
                                             });
                                         } else {
@@ -392,13 +399,8 @@ sub opac_cover_images {
                                 let done = 0;
                                 if (total === 0) { verify_cover_images(); return; }
                                 injectedImgs.forEach(img => {
-                                    if (img.complete) {
-                                        done++;
-                                        if (done === total) verify_cover_images();
-                                    } else {
-                                        img.addEventListener('load',  () => { done++; if (done === total) verify_cover_images(); });
-                                        img.addEventListener('error', () => { done++; if (done === total) verify_cover_images(); });
-                                    }
+                                    img.addEventListener('load',  () => { done++; if (done === total) verify_cover_images(); });
+                                    img.addEventListener('error', () => { done++; if (done === total) verify_cover_images(); });
                                 });
                             } else {
                                 verify_cover_images();
