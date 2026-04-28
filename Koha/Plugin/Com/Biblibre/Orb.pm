@@ -214,6 +214,9 @@ sub intranet_cover_images {
                                 const ph = document.createElement('div');
                                 ph.className = 'cover-image orb-placeholder';
                                 ph.style.display = 'none';
+                                const phImg = document.createElement('img');
+                                phImg.style.display = 'none';
+                                ph.appendChild(phImg);
                                 slide.appendChild(ph);
                             });
                         });
@@ -343,6 +346,9 @@ sub opac_cover_images {
                                 const ph = document.createElement('div');
                                 ph.className = 'cover-image orb-placeholder';
                                 ph.style.display = 'none';
+                                const phImg = document.createElement('img');
+                                phImg.style.display = 'none';
+                                ph.appendChild(phImg);
                                 slide.appendChild(ph);
                             });
                         });
