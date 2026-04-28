@@ -224,6 +224,7 @@ sub intranet_cover_images {
                                                 const wrapper = document.createElement('div');
                                                 wrapper.id = divId;
                                                 wrapper.className = 'cover-image orb-bookcoverimg';
+                                                wrapper.style.display = 'block';
                                                 const link = document.createElement('a');
                                                 link.href = sizeSrc;
                                                 const img = document.createElement('img');
@@ -236,6 +237,7 @@ sub intranet_cover_images {
                                                 wrapper.appendChild(link);
                                                 wrapper.appendChild(hint);
                                                 coverSlide.appendChild(wrapper);
+                                                coverSlide.classList.remove('cover-slides');
                                                 injectedImgs.push(img);
                                                 img.src = sizeSrc;
                                                 // Manually remove no-image div if present
@@ -275,8 +277,8 @@ sub intranet_cover_images {
                                 let done = 0;
                                 if (total === 0) { verify_cover_images(); }
                                 injectedImgs.forEach(img => {
-                                    img.addEventListener('load',  () => { done++; if (done === total) verify_cover_images(); });
-                                    img.addEventListener('error', () => { done++; if (done === total) verify_cover_images(); });
+                                    img.addEventListener('load',  () => { done++; if (done === total) requestAnimationFrame(() => { verify_cover_images(); }); });
+                                    img.addEventListener('error', () => { done++; if (done === total) requestAnimationFrame(() => { verify_cover_images(); }); });
                                 });
                             }
                         }
@@ -351,6 +353,7 @@ sub opac_cover_images {
                                                     const wrapper = document.createElement('div');
                                                     wrapper.className = 'cover-image orb-coverimg';
                                                     wrapper.title = imgTitle;
+                                                    wrapper.style.display = 'block';
                                                     const link = document.createElement('a');
                                                     link.href = sizeSrc;
                                                     const img = document.createElement('img');
@@ -363,6 +366,7 @@ sub opac_cover_images {
                                                     wrapper.appendChild(link);
                                                     wrapper.appendChild(hint);
                                                     coverSlide.appendChild(wrapper);
+                                                    coverSlide.classList.remove('cover-slides');
                                                     injectedImgs.push(img);
                                                     img.src = sizeSrc;
                                                 }
@@ -399,8 +403,8 @@ sub opac_cover_images {
                                 let done = 0;
                                 if (total === 0) { verify_cover_images(); return; }
                                 injectedImgs.forEach(img => {
-                                    img.addEventListener('load',  () => { done++; if (done === total) verify_cover_images(); });
-                                    img.addEventListener('error', () => { done++; if (done === total) verify_cover_images(); });
+                                    img.addEventListener('load',  () => { done++; if (done === total) requestAnimationFrame(() => { verify_cover_images(); }); });
+                                    img.addEventListener('error', () => { done++; if (done === total) requestAnimationFrame(() => { verify_cover_images(); }); });
                                 });
                             } else {
                                 verify_cover_images();
