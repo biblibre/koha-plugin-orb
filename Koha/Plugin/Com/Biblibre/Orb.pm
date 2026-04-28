@@ -208,8 +208,19 @@ sub intranet_cover_images {
                 });
 
                 if (isbn10s.length > 0) {
+                    if (onResultPage) {
+                        Object.values(thumbnails).forEach(slides => {
+                            slides.forEach(slide => {
+                                const ph = document.createElement('div');
+                                ph.className = 'cover-image orb-placeholder';
+                                ph.style.display = 'none';
+                                slide.appendChild(ph);
+                            });
+                        });
+                    }
                     \$.get(
                         `/api/v1/contrib/orb/images?isbn10s=\${isbn10s.join(',')}`, function( response ) {
+                            document.querySelectorAll('.orb-placeholder').forEach(ph => ph.remove());
                             if(response.length > 0) {
                                 response.forEach(doc => {
                                     let sizeSrc;
@@ -326,8 +337,19 @@ sub opac_cover_images {
                 });
                 
                 if (isbn10s.length > 0) {
+                    if (onResultPage) {
+                        Object.values(thumbnails).forEach(slides => {
+                            slides.forEach(slide => {
+                                const ph = document.createElement('div');
+                                ph.className = 'cover-image orb-placeholder';
+                                ph.style.display = 'none';
+                                slide.appendChild(ph);
+                            });
+                        });
+                    }
                     \$.get(
                         `/api/v1/contrib/orb/images?isbn10s=\${isbn10s.join(',')}`, function( response ) {
+                            document.querySelectorAll('.orb-placeholder').forEach(ph => ph.remove());
                             if(response.length > 0) {
                                 response.forEach(doc => {
                                     let sizeSrc;
