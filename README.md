@@ -6,6 +6,7 @@ This plugin lets you enrich records with covers from the Orb webservice
 
 - Koha ^23.05.x cause this plugin works with hooks introduced in this version
 - Orb API credentials access
+- LWP::Authen::OAuth2
 
 ## Setup
 
