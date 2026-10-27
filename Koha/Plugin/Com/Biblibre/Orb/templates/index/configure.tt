@@ -40,7 +40,11 @@
 <div class="container-fluid">
     <h3>Koha Orb Plugin: Configuration</h3>
 
-    <form method="get" id="orb_plugin_config">
+    <form method="post" id="orb_plugin_config">
+        [% INCLUDE 'csrf-token.inc' %]
+        <input type="hidden" name="class" value="[% CLASS | html %]" />
+        <input type="hidden" name="method" value="[% METHOD | html %]" />
+        <input type="hidden" name="op" value="cud-save" />
         <div class="container">
             <div class="row mb-3">
                 <label for="base_url" class="col-sm-2">Orb base url</label>
@@ -57,7 +61,18 @@
             <div class="row mb-3">
                 <label for="access_password" class="col-sm-2">Orb password</label>
                 <div class="col-sm-2">
-                    <input type="password" name="access_password" id="access_password" value="[% access_password | html %]" />
+                    <input type="password" name="access_password" id="access_password" value="" autocomplete="new-password" />
+                </div>
+                <div class="col-sm-4 hint">
+                    [% IF has_password %]
+                        A password is already saved. Leave empty to keep it.
+                        <div>
+                            <input type="checkbox" id="clear_password" name="clear_password" value="1" />
+                            <label for="clear_password">Clear the saved password</label>
+                        </div>
+                    [% ELSE %]
+                        No password saved yet.
+                    [% END %]
                 </div>
             </div>
             <div class="row mb-3">
@@ -87,9 +102,6 @@
                     </div>
                 </div>
             </div>
-            <input type="hidden" name="class" value="[% CLASS %]"/>
-            <input type="hidden" name="method" value="[% METHOD %]"/>
-            <input type="hidden" name="save" value="1"/>
             <div class="row">
                 <div class="col-sm-8">
                     <button type="submit" class="btn btn-primary w-100">Save configuration</button>

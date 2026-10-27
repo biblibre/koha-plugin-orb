@@ -21,11 +21,12 @@ use Mojo::Base 'Mojolicious::Controller';
 
 use LWP::UserAgent;
 use LWP::Authen::OAuth2;
-use HTTP::Request::Common;
 use JSON;
+use URI;
 
-use C4::Context;
 use C4::Koha qw(NormalizeISBN);
+
+our $DEFAULT_BASE_URL = 'https://api.base-orb.fr/v1';
 
 =head1 API
 
@@ -45,7 +46,7 @@ sub get_orb_images {
         openapi => { error => "No ISBN10s provided" }
     ) unless $isbn10s;
 
-    my @isbn10_list = split( /,/, $isbn10s );
+    my @isbn10_list = _parse_isbn10s($isbn10s);
     my %isbn10_to_ean13_map;
     my @ean13_list;
 
@@ -68,52 +69,135 @@ sub get_orb_images {
         openapi => { error => "No valid ISBN13s generated" }
     ) unless @ean13_list;
 
-    my $eans = join( ',', @ean13_list );
-    my $ua   = $c->_ua;
-    my $response =
-      $ua->get("https://api.base-orb.fr/v1/products?eans=$eans&sort=ean_asc");
+    my $plugin   = Koha::Plugin::Com::Biblibre::Orb->new();
+    my $base     = _orb_base_url( $plugin->retrieve_data('base_url') );
+    my $ua       = _ua( $plugin, $base );
+    my $response = $ua->get( _products_url( $base, \@ean13_list ) );
 
     if ( $response->is_success ) {
-        my $contents = decode_json( $response->decoded_content );
-        my $data     = $contents->{'data'};
+        my $contents = eval { decode_json( $response->decoded_content ) };
+        my $data = ref $contents eq 'HASH' ? $contents->{'data'} : undef;
 
+        return $c->render(
+            status  => 500,
+            openapi => { error => "Orb error: unexpected response" },
+        ) unless ref $data eq 'ARRAY';
+
+        # Orb output is untrusted: only keep the fields we use, for the EANs
+        # we asked for, with images that are plain https URLs
+        my @images;
         for my $item (@$data) {
+            next unless ref $item eq 'HASH';
             my $ean13 = $item->{'ean13'};
-            if ( exists $isbn10_to_ean13_map{$ean13} ) {
-                $item->{'isbn10'} = $isbn10_to_ean13_map{$ean13};
-            }
+            next unless defined $ean13 && !ref $ean13;
+            next unless exists $isbn10_to_ean13_map{$ean13};
+
+            my $front = _front_images($item);
+            next unless $front;
+
+            push @images,
+              {
+                ean13  => $ean13,
+                isbn10 => $isbn10_to_ean13_map{$ean13},
+                images => { front => $front },
+              };
         }
 
         return $c->render(
             status  => 200,
-            openapi => $data,
+            openapi => \@images,
         );
     }
-    elsif ( $response->is_error ) {
+    else {
+        warn "Orb error: " . $response->status_line;
         return $c->render(
             status  => 500,
-            openapi => { error => "Orb error: " . $response->status_line },
+            openapi => { error => "Orb webservice unavailable" },
         );
     }
+}
+
+sub _front_images {
+    my ($item) = @_;
+
+    my $front = ref $item->{'images'} eq 'HASH' ? $item->{'images'}{'front'} : undef;
+    return unless ref $front eq 'HASH';
+
+    my %src;
+    for my $size (qw(thumbnail original)) {
+        my $image = $front->{$size};
+        next unless ref $image eq 'HASH';
+        my $url = _safe_url( $image->{'src'} );
+        $src{$size} = $url if $url;
+    }
+    return unless %src;
+
+    # The JS reads both sizes, fall back on the one we have
+    $src{thumbnail} //= $src{original};
+    $src{original}  //= $src{thumbnail};
+
+    return {
+        thumbnail => { src => $src{thumbnail} },
+        original  => { src => $src{original} },
+    };
+}
+
+sub _safe_url {
+    my ($url) = @_;
+
+    return unless defined $url && !ref $url;
+
+    my $uri = URI->new($url);
+    return unless $uri->scheme && $uri->scheme eq 'https' && $uri->host;
+
+    return $uri->canonical->as_string;
+}
+
+sub _parse_isbn10s {
+    my ($isbn10s) = @_;
+
+    my %seen;
+    return grep { length && !$seen{$_}++ }
+      map { s/^\s+|\s+$//gr } split( /,/, $isbn10s // '' );
+}
+
+# Credentials are sent to this URL, so anything but https falls back on the
+# default one
+sub _orb_base_url {
+    my ($stored) = @_;
+
+    my $uri = URI->new( $stored // '' );
+    $uri = URI->new($DEFAULT_BASE_URL)
+      unless $uri->scheme && $uri->scheme eq 'https' && $uri->host;
+
+    my $path = $uri->path;
+    $path =~ s{/+$}{};
+    $uri->path($path);
+
+    return $uri;
+}
+
+sub _products_url {
+    my ( $base, $ean13s ) = @_;
+
+    my $url = $base->clone;
+    $url->path( $url->path . '/products' );
+    $url->query( 'eans=' . join( ',', @$ean13s ) . '&sort=ean_asc' );
+
+    return $url;
 }
 
 sub _ua {
-    my $ua     = LWP::UserAgent->new();
-    my $plugin = Koha::Plugin::Com::Biblibre::Orb->new();
+    my ( $plugin, $base ) = @_;
 
-    my $username = $plugin->retrieve_data('access_username');
-    my $password = $plugin->retrieve_data('access_password');
-    $ua->credentials( 'api.base-orb.fr:443', '', $username, $password );
+    my $ua = LWP::UserAgent->new( timeout => 10 );
+    $ua->credentials(
+        $base->host_port, '',
+        $plugin->retrieve_data('access_username'),
+        $plugin->retrieve_data('access_password')
+    );
 
     return $ua;
-}
-
-sub _is_thumbnail_size {
-    my ( $self, $side ) = @_;
-
-    my $plugin = Koha::Plugin::Com::Biblibre::Orb->new();
-
-    return $plugin->retrieve_data("thumbnail_on_$side");
 }
 
 1;

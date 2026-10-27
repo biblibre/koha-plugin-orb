@@ -2,17 +2,16 @@ package Koha::Plugin::Com::Biblibre::Orb;
 
 use Modern::Perl;
 use base       qw(Koha::Plugins::Base);
-use Mojo::JSON qw(decode_json);
-use C4::Context;
+use Koha::Token;
 
-our $VERSION         = "4.2";
+our $VERSION         = "4.3";
 our $MINIMUM_VERSION = "23.05";
 
 our $metadata = {
     name            => 'Plugin Orb',
     author          => 'Thibaud Guillot',
     date_authored   => '2024-11-18',
-    date_updated    => "2026-05-04",
+    date_updated    => "2026-10-27",
     minimum_version => $MINIMUM_VERSION,
     maximum_version => undef,
     version         => $VERSION,
@@ -34,24 +33,33 @@ sub new {
     return $self;
 }
 
-# Mandatory even if does nothing
 sub install {
     my ( $self, $args ) = @_;
- 
+
+    $self->store_data( { image_on_staff => 1, image_on_opac => 1 } );
+
     return 1;
 }
- 
-# Mandatory even if does nothing
+
 sub upgrade {
     my ( $self, $args ) = @_;
- 
+
+    # Up to 4.2 the Staff/OPAC boxes and the base url had no effect: covers
+    # were always shown, from the default url. Keep that behaviour now that
+    # these settings are honoured
+    my $installed = $self->retrieve_data('__INSTALLED_VERSION__') || 0;
+    if ( version->parse($installed) < version->parse('4.3') ) {
+        $self->store_data(
+            { image_on_staff => 1, image_on_opac => 1, base_url => undef } );
+    }
+
     return 1;
 }
- 
+
 # Mandatory even if does nothing
 sub uninstall {
     my ( $self, $args ) = @_;
- 
+
     return 1;
 }
 
@@ -59,7 +67,7 @@ sub configure {
     my ( $self, $args ) = @_;
     my $cgi = $self->{'cgi'};
 
-    unless ( $cgi->param('save') ) {
+    unless ( ( $cgi->param('op') // '' ) eq 'cud-save' ) {
         my $template =
           $self->get_template( { file => 'templates/index/configure.tt' } );
 
@@ -75,7 +83,7 @@ sub configure {
         $template->param(
             base_url           => $base_url,
             access_username    => $access_username,
-            access_password    => $access_password,
+            has_password       => ( defined $access_password && $access_password ne '' ) ? 1 : 0,
             image_on_staff     => $image_on_staff,
             image_on_opac      => $image_on_opac,
             thumbnail_on_staff => $thumbnail_on_staff,
@@ -85,21 +93,40 @@ sub configure {
         $self->output_html( $template->output() );
     }
     else {
+        # Koha < 24.05 has no CSRF middleware, so the token and the method
+        # are checked here too
+        unless (
+            $cgi->request_method eq 'POST'
+            && Koha::Token->new->check_csrf(
+                {
+                    session_id => scalar $cgi->cookie('CGISESSID'),
+                    token      => scalar $cgi->param('csrf_token'),
+                }
+            )
+          )
+        {
+            $self->output_html( 'Invalid request', '403 Forbidden' );
+            return;
+        }
+
+        my $access_password = $cgi->param('access_password');
+
+        # scalar: in list context a repeated parameter would add keys to $data
         my $data = {
-            base_url => $cgi->param('base_url') ? $cgi->param('base_url')
-            : undef,
-            access_username => $cgi->param('access_username')
-            ? $cgi->param('access_username')
-            : undef,
-            access_password => $cgi->param('access_password')
-            ? $cgi->param('access_password')
-            : undef,
-            resume_on_opac     => $cgi->param('resume_on_opac')     ? 1 : 0,
+            base_url        => scalar $cgi->param('base_url')        || undef,
+            access_username => scalar $cgi->param('access_username') || undef,
             image_on_staff     => $cgi->param('image_on_staff')     ? 1 : 0,
             image_on_opac      => $cgi->param('image_on_opac')      ? 1 : 0,
             thumbnail_on_staff => $cgi->param('thumbnail_on_staff') ? 1 : 0,
             thumbnail_on_opac  => $cgi->param('thumbnail_on_opac')  ? 1 : 0,
         };
+
+        if ( $cgi->param('clear_password') ) {
+            $data->{access_password} = undef;
+        }
+        elsif ( defined $access_password && $access_password ne '' ) {
+            $data->{access_password} = $access_password;
+        }
 
         $self->store_data($data);
         $self->go_home();
@@ -164,24 +191,84 @@ sub _convert_array_refs_to_absolute {
     return \@res;
 }
 
+sub _orb_js_helpers {
+    return <<'JS';
+        // Only accept absolute https urls coming from the Orb webservice response
+        function orbSafeUrl(url) {
+            if (typeof url !== 'string') {
+                return null;
+            }
+            try {
+                const parsed = new URL(url);
+                return parsed.protocol === 'https:' ? parsed.href : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Build the cover markup with DOM APIs so Orb data is never parsed as HTML
+        function buildOrbCover({ id, className, title, imgClass, src, hint }) {
+            const div = document.createElement('div');
+            div.className = className;
+            if (id) {
+                div.id = id;
+            }
+            if (title) {
+                div.title = title;
+            }
+            const link = document.createElement('a');
+            link.href = src || '#';
+            const img = document.createElement('img');
+            img.className = imgClass;
+            img.alt = 'Orb cover image';
+            if (src) {
+                img.src = src;
+            }
+            link.appendChild(img);
+            const hintDiv = document.createElement('div');
+            hintDiv.className = 'hint';
+            hintDiv.textContent = hint;
+            div.appendChild(link);
+            div.appendChild(hintDiv);
+            return div;
+        }
+
+        // verify_cover_images is not defined on every page (OPAC results before 24.05)
+        function orbVerifyCovers() {
+            if (typeof verify_cover_images === 'function') {
+                verify_cover_images();
+            }
+        }
+
+        // Remove the slots prepared before the API call when no cover comes back
+        function orbCleanup() {
+            document.querySelectorAll('.orb-placeholder').forEach(ph => ph.remove());
+            $("#orb-bookcoverimg").remove();
+            orbVerifyCovers();
+        }
+JS
+}
+
 sub intranet_cover_images {
     my ($self) = @_;
-    my $cgi = $self->{'cgi'};
+    return '' unless $self->retrieve_data('image_on_staff');
+
     my $thumbnail_on_staff = $self->_is_thumbnail_size('staff');
+    my $orb_js_helpers = $self->_orb_js_helpers;
 
     my $js = <<"JS";
     <script>
+$orb_js_helpers
         function addOrbCover(e) {
             const search_results_images = document.querySelectorAll('.cover-slides, .cover-slider');
             const existingCovers = document.querySelectorAll('.cover-image');
             const divDetail = \$('#catalogue_detail_biblio');
             const onResultPage = divDetail.length ? false : true;
             if(search_results_images.length){
-                const isbn10s = [];
                 const thumbnails = {};
                 search_results_images.forEach((div, i) => {
                     let isbn = div.dataset.isbn;
-                    
+
                     if (isbn) {
                         const originalIsbn = isbn.length == 10 ? isbn : null;
                         if (originalIsbn) {
@@ -189,24 +276,23 @@ sub intranet_cover_images {
                                 thumbnails[originalIsbn] = [];
                             }
                             thumbnails[originalIsbn].push(div);
-                            isbn10s.push(originalIsbn);
                         }
                     }
                     if(!onResultPage && existingCovers.length == 0 && isbn){
                         const coverSlide = thumbnails[isbn];
                         if(coverSlide){
-                            \$(coverSlide).append(`
-                                <div id="orb-bookcoverimg" class="cover-image orb-bookcoverimg">
-                                    <a href="#" >
-                                        <img class="orb-cover" alt="Orb cover image" />
-                                    </a>
-                                    <div class="hint">Image from Orb</div>
-                                </div>
-                            `);
+                            \$(coverSlide).append(buildOrbCover({
+                                id: 'orb-bookcoverimg',
+                                className: 'cover-image orb-bookcoverimg',
+                                imgClass: 'orb-cover',
+                                hint: 'Image from Orb',
+                            }));
                         }
                     }
                 });
 
+                // One entry per ISBN even if several records share it
+                const isbn10s = Object.keys(thumbnails);
                 if (isbn10s.length > 0) {
                     if (onResultPage) {
                         Object.values(thumbnails).forEach(slides => {
@@ -230,36 +316,41 @@ sub intranet_cover_images {
                                     const coverSlides = thumbnails[doc.isbn10];
                                     if (coverSlides && doc.images) {
                                         if(onResultPage) {
-                                            sizeSrc = doc.images.front.thumbnail.src;
-                                            coverSlides.forEach(coverSlide => {
-                                                const biblionumber = coverSlide.getAttribute('data-biblionumber');
-                                                const divId = `orb-bookcoverimg-\${biblionumber}`;
-                                                coverSlide.innerHTML += `
-                                                    <div id="\${divId}" class="cover-image orb-bookcoverimg">
-                                                        <a href="\${sizeSrc}" >
-                                                            <img class="orb-cover" src="\${sizeSrc}" alt="Orb cover image" />
-                                                        </a>
-                                                        <div class="hint">Orb cover image</div>
-                                                    </div>
-                                                `;
-                                                // Manually remove no-image div if present
-                                                if(coverSlide.querySelector('.no-image')){
-                                                    coverSlide.querySelector('.no-image').remove();
-                                                }
-                                            });
-                                         
+                                            sizeSrc = orbSafeUrl(doc.images.front.thumbnail.src);
+                                            if (sizeSrc) {
+                                                coverSlides.forEach(coverSlide => {
+                                                    const biblionumber = coverSlide.getAttribute('data-biblionumber');
+                                                    coverSlide.appendChild(buildOrbCover({
+                                                        id: 'orb-bookcoverimg-' + biblionumber,
+                                                        className: 'cover-image orb-bookcoverimg',
+                                                        imgClass: 'orb-cover',
+                                                        src: sizeSrc,
+                                                        hint: 'Orb cover image',
+                                                    }));
+                                                    // Manually remove no-image div if present
+                                                    if(coverSlide.querySelector('.no-image')){
+                                                        coverSlide.querySelector('.no-image').remove();
+                                                    }
+                                                });
+                                            }
+
                                         } else {
-                                            sizeSrc = '$thumbnail_on_staff' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src;
-                                            if(existingCovers.length > 0) {
-                                                \$(coverSlides).append(`
-                                                    <div id="orb-bookcoverimg" class="cover-image orb-bookcoverimg">
-                                                        <a href="\${sizeSrc}" >
-                                                            <img class="orb-cover" src="\${sizeSrc}" alt="Orb cover image" />
-                                                        </a>
-                                                        <div class="hint">Image from Orb</div>
-                                                    </div>
-                                                `);
-                                                verify_cover_images();
+                                            sizeSrc = orbSafeUrl('$thumbnail_on_staff' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src);
+                                            if (!sizeSrc) {
+                                                // Drop the empty slot prepared before the call
+                                                if(existingCovers.length == 0) {
+                                                    \$("#orb-bookcoverimg").remove();
+                                                    orbVerifyCovers();
+                                                }
+                                            } else if(existingCovers.length > 0) {
+                                                \$(coverSlides).append(buildOrbCover({
+                                                    id: 'orb-bookcoverimg',
+                                                    className: 'cover-image orb-bookcoverimg',
+                                                    imgClass: 'orb-cover',
+                                                    src: sizeSrc,
+                                                    hint: 'Image from Orb',
+                                                }));
+                                                orbVerifyCovers();
                                             } else {
                                                 const orbThumbnail = \$("#orb-bookcoverimg");
                                                 orbThumbnail.find('img').attr('src', sizeSrc);
@@ -269,23 +360,21 @@ sub intranet_cover_images {
                                     }
                                 });
                             } else {
-                                const orbThumbnail = \$("#orb-bookcoverimg");
-                                orbThumbnail.remove();
-                                verify_cover_images();
+                                orbCleanup();
                             }
 
                             if (onResultPage) {
                                 const length = \$('.orb-bookcoverimg').length;
                                 let i = 0;
-                                \$('.orb-cover').load(() => {
+                                \$('.orb-cover').on('load', () => {
                                     i++;
                                     if (i == length) {
-                                        verify_cover_images();
+                                        orbVerifyCovers();
                                     }
                                 });
                             }
                         }
-                );
+                ).fail(orbCleanup);
                 }
             }
         }
@@ -298,22 +387,24 @@ JS
 
 sub opac_cover_images {
     my ($self) = @_;
-    my $cgi = $self->{'cgi'};
+    return '' unless $self->retrieve_data('image_on_opac');
+
     my $thumbnail_on_opac = $self->_is_thumbnail_size('opac');
+    my $orb_js_helpers = $self->_orb_js_helpers;
 
     my $js = <<"JS";
     <script>
+$orb_js_helpers
         function addOrbCover() {
             const search_results_images = document.querySelectorAll('.cover-slides, .cover-slider');
             const existingCovers = document.querySelectorAll('.cover-image');
             const divDetail = \$('#catalogue_detail_biblio');
             const onResultPage = divDetail.length ? false : true;
             if(search_results_images.length){
-                const isbn10s = [];
                 const thumbnails = {};
                 search_results_images.forEach((div, i) => {
                     let isbn = div.dataset.isbn;
-                    
+
                     if (isbn) {
                         const originalIsbn = isbn.length == 10 ? isbn : null;
                         if (originalIsbn) {
@@ -321,24 +412,23 @@ sub opac_cover_images {
                                 thumbnails[originalIsbn] = [];
                             }
                             thumbnails[originalIsbn].push(div);
-                            isbn10s.push(originalIsbn);
                         }
                     }
                     if(!onResultPage && existingCovers.length == 0 && isbn){
                         const coverSlide = thumbnails[isbn];
                         if(coverSlide){
-                            \$(coverSlide).append(`
-                                <div class="cover-image" id="orb-bookcoverimg">
-                                    <a href="#" >
-                                        <img alt="Orb cover image" class="orb-cover" />
-                                    </a>
-                                    <div class="hint">Image from Orb</div>
-                                </div>
-                            `);
+                            \$(coverSlide).append(buildOrbCover({
+                                id: 'orb-bookcoverimg',
+                                className: 'cover-image',
+                                imgClass: 'orb-cover',
+                                hint: 'Image from Orb',
+                            }));
                         }
                     }
                 });
-                
+
+                // One entry per ISBN even if several records share it
+                const isbn10s = Object.keys(thumbnails);
                 if (isbn10s.length > 0) {
                     if (onResultPage) {
                         Object.values(thumbnails).forEach(slides => {
@@ -362,31 +452,35 @@ sub opac_cover_images {
                                     const coverSlides = thumbnails[doc.isbn10];
                                     if (coverSlides && doc.images) {
                                         if (onResultPage) {
-                                            sizeSrc = doc.images.front.thumbnail.src;
-                                            coverSlides.forEach(coverSlide => {
-                                                if (coverSlide) {
-                                                    const imgTitle = coverSlide.dataset.title;
-                                                    coverSlide.innerHTML += `
-                                                        <div class="cover-image orb-coverimg" title="\${imgTitle}">
-                                                            <a href="\${sizeSrc}" >
-                                                                <img src="\${sizeSrc}" alt="Orb cover image" class="item-thumbnail" />
-                                                            </a>
-                                                            <div class="hint">Image from Orb</div>
-                                                        </div>
-                                                    `;
-                                                }
-                                            });
+                                            sizeSrc = orbSafeUrl(doc.images.front.thumbnail.src);
+                                            if (sizeSrc) {
+                                                coverSlides.forEach(coverSlide => {
+                                                    if (coverSlide) {
+                                                        coverSlide.appendChild(buildOrbCover({
+                                                            className: 'cover-image orb-coverimg',
+                                                            title: coverSlide.dataset.title,
+                                                            imgClass: 'item-thumbnail',
+                                                            src: sizeSrc,
+                                                            hint: 'Image from Orb',
+                                                        }));
+                                                    }
+                                                });
+                                            }
                                         } else {
-                                            sizeSrc = '$thumbnail_on_opac' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src;
-                                            if(existingCovers.length > 0) {
-                                                \$(coverSlides).append(`
-                                                    <div class="cover-image" id="orb-bookcoverimg">
-                                                        <a href="\${sizeSrc}" >
-                                                            <img src="\${sizeSrc}" alt="Orb cover image" class="orb-cover" />
-                                                        </a>
-                                                        <div class="hint">Image from Orb</div>
-                                                    </div>
-                                                `);
+                                            sizeSrc = orbSafeUrl('$thumbnail_on_opac' == 1 ? doc.images.front.thumbnail.src : doc.images.front.original.src);
+                                            if (!sizeSrc) {
+                                                // Drop the empty slot prepared before the call
+                                                if(existingCovers.length == 0) {
+                                                    \$("#orb-bookcoverimg").remove();
+                                                }
+                                            } else if(existingCovers.length > 0) {
+                                                \$(coverSlides).append(buildOrbCover({
+                                                    id: 'orb-bookcoverimg',
+                                                    className: 'cover-image',
+                                                    imgClass: 'orb-cover',
+                                                    src: sizeSrc,
+                                                    hint: 'Image from Orb',
+                                                }));
                                             } else {
                                                 const orbThumbnail = \$("#orb-bookcoverimg");
                                                 orbThumbnail.find('img').attr('src', sizeSrc);
@@ -400,8 +494,8 @@ sub opac_cover_images {
                                 const orbThumbnail = \$("#orb-bookcoverimg");
                                 orbThumbnail.remove();
                             }
-                            verify_cover_images();
-                        });
+                            orbVerifyCovers();
+                        }).fail(orbCleanup);
                 }
             }
         }
@@ -415,9 +509,7 @@ JS
 sub _is_thumbnail_size {
     my ( $self, $side ) = @_;
 
-    my $plugin = Koha::Plugin::Com::Biblibre::Orb->new();
-
-    return $plugin->retrieve_data("thumbnail_on_$side");
+    return $self->retrieve_data("thumbnail_on_$side");
 }
 
 1;
